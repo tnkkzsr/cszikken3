@@ -227,7 +227,10 @@ def p_statement(p):
     
 def p_assignment_statement(p):
     '''assignment_statement : IDENT ASSIGN expression'''
-    symtable.lookup(p[1])
+     
+    t = symtable.lookup(p[1])
+    ptr = Operand(OType.GLOBAL_VAR, name=t.name)
+    addCode(LLVMCodeStore(p[3], ptr))
 
 def p_if_statement(p):
     '''if_statement : IF condition THEN statement else_statement'''
@@ -326,7 +329,6 @@ def p_expression(p):
             p[0] = retval   
 
 
-
 def p_term(p):
     '''
     term : factor
@@ -342,7 +344,7 @@ def p_term(p):
             retval = getRegister()
             addCode(LLVMCodeMul(retval, arg1, arg2))
             p[0] = retval
-        elif p[2] == "/":
+        elif p[2] == "div":
             arg1 = p[1]
             arg2 = p[3]
             retval = getRegister()
