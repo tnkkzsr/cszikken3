@@ -34,6 +34,7 @@ class SymbolTable(object):
 
     def __init__(self):
         self.rows = []
+        #aaaa
 
     def insert(self, name:str, scope:Scope):
         ''' 記号表への変数・手続きの登録 '''
