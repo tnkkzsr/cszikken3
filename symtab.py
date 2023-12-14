@@ -39,6 +39,7 @@ class SymbolTable(object):
         ''' 記号表への変数・手続きの登録 '''
         self.rows.append(Symbol(name, scope))
         print("-- insert --")
+        
         print( (name, scope))
 
     def lookup(self, name:str) -> Symbol:
