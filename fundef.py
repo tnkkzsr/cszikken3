@@ -9,7 +9,7 @@ class Fundef(object):
         self.name  = name		# 関数名
         self.rettype = type		# 返り値の型名（'i32' or 'void'）
         self.codes = []			# LLVMコード列（LLVMCodeサブクラスのオブジェクトリスト）
-        self.cntr  = 1			# レジスタ番号カウンタ
+        self.cntr  = 1			# レジスタ番号カウンタaa
 
     def getNewRegNo(self):
         ''' レジスタ番号の取得 '''
