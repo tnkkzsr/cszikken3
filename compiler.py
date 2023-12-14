@@ -306,6 +306,24 @@ def p_expression(p):
     '''
     if len(p) == 2:
         p[0] = p[1]
+    elif len(p) == 3:
+        arg = p[2]
+        retval = getRegister()
+        addCode(LLVMCodeSub(retval, Operand(OType.CONSTANT, val=0), arg))
+        p[0] = retval
+    else:
+        if p[2] == "+":
+            arg1 = p[1]
+            arg2 = p[3]
+            retval = getRegister()
+            addCode(LLVMCodeAdd(retval, arg1, arg2))
+            p[0] = retval
+        elif p[2] == "-":
+            arg1 = p[1]
+            arg2 = p[3]
+            retval = getRegister()
+            addCode(LLVMCodeSub(retval, arg1, arg2))
+            p[0] = retval   
 
 
 
@@ -323,6 +341,12 @@ def p_term(p):
             arg2 = p[3]
             retval = getRegister()
             addCode(LLVMCodeMul(retval, arg1, arg2))
+            p[0] = retval
+        elif p[2] == "/":
+            arg1 = p[1]
+            arg2 = p[3]
+            retval = getRegister()
+            addCode(LLVMCodeDiv(retval, arg1, arg2))
             p[0] = retval
 
 
