@@ -204,3 +204,43 @@ class LLVMCodeCallScanf(LLVMCode):
     def __str__(self):
         return f"{self.res} = call i32 (i8*, ...) @scanf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str.r, i64 0, i64 0), i32* {self.arg})"
 
+class LLVMCodeConditon(LLVMCode):
+    ''' 条件判定文
+            {retval} = icmp {cmp} i32 {arg1}, {arg2}
+    '''
+    def __init__(self, retval:Operand, arg1:Operand, arg2:Operand, cmp:CmpType):
+        super().__init__()
+        self.retval = retval
+        self.arg1 = arg1
+        self.arg2 = arg2
+        self.cmp = cmp
+        
+    def __str__(self):
+        return f"{self.retval} = icmp {self.cmp} i32 {self.arg1}, {self.arg2}"
+
+class LLVMCodeBr(LLVMCode):
+    ''' 条件付き分岐
+            br i1 {cond}, label {then}, label {else}
+    '''
+    def __init__(self, cond:Operand, then:str, else_:str):
+        super().__init__()
+        self.cond = cond
+        self.then = then
+        self.else_ = else_
+        
+    def __str__(self):
+        if self.else_ :
+            return f"br i1 {self.cond}, label %{self.then}, label %{self.else_}"
+        else:
+            return f"br label %{self.then}"
+
+class LLVMCodeLabel(LLVMCode):
+    ''' ラベル
+            {label}:
+    '''
+    def __init__(self, label:str):
+        super().__init__()
+        self.label = label
+        
+    def __str__(self):
+        return f"{self.label}:"

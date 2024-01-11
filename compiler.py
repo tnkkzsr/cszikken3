@@ -113,6 +113,13 @@ def getRegister():
     ''' 新たなレジスタ番号をもつ Operand オブジェクトを返す '''
     return Operand(OType.NUMBERED_REG, val=fundefs[-1].getNewRegNo())
 
+def getLabel():
+    ''' 新たなラベルを返す '''
+    counter = 1
+    new_label = "L" + str(counter)
+    counter += 1
+    return new_label
+
 #################################################################
 # ここから先に構文規則を書く
 #################################################################
@@ -233,7 +240,42 @@ def p_assignment_statement(p):
     addCode(LLVMCodeStore(p[3], ptr))
 
 def p_if_statement(p):
-    '''if_statement : IF condition THEN statement else_statement'''
+    '''if_statement : act_generate_labels IF condition THEN act_insert_br act_insert_label1 statement act_insert_jump1 act_insert_label2 else_statement act_insert_jump2 act_insert_label3'''
+    
+def p_act_generate_labels(p):
+    '''act_generate_labels :'''
+    label1 = getLabel()
+    label2 = getLabel()
+    label3 = getLabel()
+    p[0] = (label1, label2, label3)
+
+def p_act_insert_br(p):
+    '''act_insert_br :'''
+    addCode(LLVMCodeBr(p[-2],p[1], p[4]))
+    
+def p_act_insert_label1(p):
+    '''act_insert_label1 :'''
+    addCode(LLVMCodeLabel(p[-5][0]))
+    p[0] = p[-5][0]
+
+def p_act_insert_label2(p):
+    '''act_insert_label2 :'''
+    addCode(LLVMCodeLabel(p[-8][1]))
+    p[0] = p[-8][1]
+
+def p_act_insert_label3(p):
+    '''act_insert_label3 :'''
+    addCode(LLVMCodeLabel(p[-11][2]))
+    p[0] = p[-11][2]
+        
+def p_act_insert_jump1(p):
+    '''act_insert_jump1 :'''
+    addCode(LLVMCodeBr(p[-2], p[-7][2]))
+
+def p_act_insert_jump2(p):
+    '''act_insert_jump2 :'''
+    addCode(LLVMCodeBr(p[-2], p[-10][2]))
+    
     
 
 def p_else_statement(p):
@@ -299,6 +341,9 @@ def p_condition(p):
                  | expression LE expression
                  | expression GT expression
                  | expression GE expression'''
+    retval = getRegister()
+    addCode(LLVMCodeConditon(retval, p[1], p[3], p[2]))
+    p[0] = retval
 
 def p_expression(p):
     '''
