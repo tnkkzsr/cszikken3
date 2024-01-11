@@ -105,6 +105,10 @@ fundefs = []				# 生成した関数定義（Fundef）のリスト
 useWrite = False			# write関数が使用されているかのフラグ
 useRead  = False			# read関数が使用されているかのフラグ
 
+labelNum = 1
+
+labels = []
+
 def addCode(l:LLVMCode):
     ''' 現在の関数定義オブジェクトの codes に命令 l を追加 '''
     fundefs[-1].codes.append(l)
@@ -112,13 +116,6 @@ def addCode(l:LLVMCode):
 def getRegister():
     ''' 新たなレジスタ番号をもつ Operand オブジェクトを返す '''
     return Operand(OType.NUMBERED_REG, val=fundefs[-1].getNewRegNo())
-
-def getLabel():
-    ''' 新たなラベルを返す '''
-    counter = 1
-    new_label = "L" + str(counter)
-    counter += 1
-    return new_label
 
 #################################################################
 # ここから先に構文規則を書く
@@ -201,6 +198,7 @@ def p_proc_decl(p):
     proc_decl : PROCEDURE proc_name LPAREN RPAREN SEMICOLON inblock
     '''
     
+    
 
 def p_proc_name(p):
     '''
@@ -239,42 +237,66 @@ def p_assignment_statement(p):
     ptr = Operand(OType.GLOBAL_VAR, name=t.name)
     addCode(LLVMCodeStore(p[3], ptr))
 
+def p_act_assign_ident(p):
+    '''act_assign_ident :'''
+    addCode(LLVMCodeStore(p[-1], p[-3]))
+    p[0] = p[-3]
+
+
 def p_if_statement(p):
-    '''if_statement : act_generate_labels IF condition THEN act_insert_br act_insert_label1 statement act_insert_jump1 act_insert_label2 else_statement act_insert_jump2 act_insert_label3'''
+    '''if_statement : act_generate_labels IF condition act_insert_br THEN act_insert_label1 statement act_insert_jump3 act_insert_label2 else_statement act_insert_jump3 act_insert_label3'''
     
 def p_act_generate_labels(p):
-    '''act_generate_labels :'''
-    label1 = getLabel()
-    label2 = getLabel()
-    label3 = getLabel()
-    p[0] = (label1, label2, label3)
+    '''act_generate_labels : '''
+    global labelNum,labels
+    childLabels = []
+    for i in range(3):
+        childLabels.append(Operand(OType.LABEL, val=labelNum))
+        labelNum += 1
+    labels.append(childLabels)
 
 def p_act_insert_br(p):
     '''act_insert_br :'''
-    addCode(LLVMCodeBr(p[-2],p[1], p[4]))
+    chileLabels = labels[-1]
+    addCode(LLVMCodeBr(chileLabels[0], chileLabels[1], p[-1]))
     
 def p_act_insert_label1(p):
     '''act_insert_label1 :'''
-    addCode(LLVMCodeLabel(p[-5][0]))
-    p[0] = p[-5][0]
+    label = labels[-1][0]
+    addCode(LLVMCodeLabel(label))
+    p[0] = label
 
 def p_act_insert_label2(p):
     '''act_insert_label2 :'''
-    addCode(LLVMCodeLabel(p[-8][1]))
-    p[0] = p[-8][1]
+    label = labels[-1][1]
+    addCode(LLVMCodeLabel(label))
+    p[0] = label
 
 def p_act_insert_label3(p):
     '''act_insert_label3 :'''
-    addCode(LLVMCodeLabel(p[-11][2]))
-    p[0] = p[-11][2]
+    label = labels[-1][2]
+    addCode(LLVMCodeLabel(label))
+    p[0] = label
+    labels.pop(-1)
         
 def p_act_insert_jump1(p):
     '''act_insert_jump1 :'''
-    addCode(LLVMCodeBr(p[-2], p[-7][2]))
+    label = labels[-1][0]
+    addCode(LLVMCodeBr(label))
+    p[0] = label
 
 def p_act_insert_jump2(p):
     '''act_insert_jump2 :'''
-    addCode(LLVMCodeBr(p[-2], p[-10][2]))
+    label = labels[-1][1]
+    addCode(LLVMCodeBr(label))
+    p[0] = label
+
+def p_act_insert_jump3(p):
+    '''act_insert_jump3 :'''
+    label = labels[-1][2]
+    addCode(LLVMCodeBr(label))
+    p[0] = label
+    
     
     
 
@@ -284,11 +306,38 @@ def p_else_statement(p):
     
 
 def p_while_statement(p):
-    '''while_statement : WHILE condition DO statement'''
+    '''while_statement : WHILE act_generate_labels act_insert_jump1 act_insert_label1 condition act_insert_br_while DO act_insert_label2 statement act_insert_jump1 act_insert_label3'''
+
+def p_act_insert_br_while(p):
+    '''act_insert_br_while :'''
+    chileLabels = labels[-1]
+    addCode(LLVMCodeBr(chileLabels[1], chileLabels[2], p[-1]))
+
 
 
 def p_for_statement(p):
-    '''for_statement : FOR IDENT ASSIGN expression for_act1 TO expression DO statement'''
+    '''for_statement : FOR act_generate_labels IDENT act_lookup_prev_ident ASSIGN expression act_assign_ident act_insert_jump1 act_insert_label1 TO expression act_insert_br_for act_insert_label2 DO statement act_increment_itr act_insert_jump1 act_insert_label3'''
+
+def p_act_insert_br_for(p):
+    '''act_insert_br_for :'''
+    ptr = p[-8]
+    retval1 = getRegister()
+    addCode(LLVMCodeLoad(retval1, ptr))
+    retval2 = getRegister()
+    cmptype = CmpType.getCmpType("<=")
+    addCode(LLVMCodeCmp(retval2, cmptype, retval1, p[-1]))
+    chileLabels = labels[-1]
+    addCode(LLVMCodeBr(chileLabels[1], chileLabels[2], retval2))
+    p[0] = retval1
+
+def p_act_increment_itr(p):
+    '''act_increment_itr :'''
+    retval1 = p[-4]
+    retval2 = getRegister()
+    arg1 = Operand(OType.CONSTANT, val=1)
+    addCode(LLVMCodeAdd(retval2, retval1, arg1))
+    addCode(LLVMCodeStore(retval2, p[-9]))
+
 
 def p_for_act1(p):
     '''for_act1 :'''
@@ -297,6 +346,7 @@ def p_for_act1(p):
 
 def p_proc_call_statement(p):
     '''proc_call_statement : proc_call_name LPAREN RPAREN'''
+
     
 
 def p_proc_call_name(p):
@@ -307,7 +357,14 @@ def p_proc_call_name(p):
 def p_block_statement(p):
     '''block_statement : BEGIN statement_list END'''
     
-
+def p_act_lookup_prev_ident(p):
+    '''act_lookup_prev_ident :'''
+    t = symtable.lookup(p[-1])
+    if t.scope == Scope.GLOBAL_VAR or t.scope == Scope.PROC:
+        ptr = Operand(OType.GLOBAL_VAR, name=t.name)
+    elif t.scope == Scope.LOCAL_VAR:
+        ptr = Operand(OType.NAMED_REG, val=t.name)
+    p[0] = ptr
 
 def p_read_statement(p):
     '''
@@ -341,8 +398,9 @@ def p_condition(p):
                  | expression LE expression
                  | expression GT expression
                  | expression GE expression'''
+    cmptype = CmpType.getCmpType(p[2])
     retval = getRegister()
-    addCode(LLVMCodeConditon(retval, p[1], p[3], p[2]))
+    addCode(LLVMCodeCmp(retval, cmptype, p[1], p[3]))
     p[0] = retval
 
 def p_expression(p):
@@ -435,7 +493,32 @@ def p_id_list(p):
     elif(len(p) == 4):
         symtable.insert(p[3], varscope)
 
+def p_act_insert_prev_var_ident(p):
+    '''act_insert_prev_var_ident :'''
+    sym = Symbol(p[-1], varscope)
+    symtable.insert(sym)
+        # if varscope == Scope.GLOBAL_VAR:
+        #     addCode(LLVMCodeAlloca(Operand(Otype.NAMED_REG, name=sym.name)))
 
+def p_actinsert_prev_proc_ident(p):
+    '''act_insert_prev_proc_ident :'''
+    sym = Symbol(p[-1], Scope.PROC)
+    symtable.insert(sym)
+
+def p_act_set_varscope_local(p):
+    '''act_set_varscope_local :'''
+    global varscope
+    varscope = Scope.LOCAL_VAR
+
+def p_act_set_varscope_global(p):
+    '''act_set_varscope_global : act_delete_local_ident'''
+    global varscope
+    varscope = Scope.GLOBAL_VAR
+
+def p_act_delete_local_ident(p):
+    '''act_delete_local_ident :'''
+    symtable.delete()
+    
 #################################################################
 # 構文解析エラー時の処理
 #################################################################
