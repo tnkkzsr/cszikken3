@@ -259,4 +259,19 @@ class LLVMCodeCmp(LLVMCode):
         
     def __str__(self):
             return f"{self.retval} = icmp {self.cmptype} i32 {self.arg1}, {self.arg2}"
-        
+
+class LLVMCodeCall(LLVMCode):
+    def __init__(self,proc, type="void"):
+        super().__init__()
+        self.type=type
+        self.proc=proc
+    def __str__(self):
+        return f"call {self.type} @{self.proc}()"
+    
+class LLVMCodeAlloca(LLVMCode):
+    def __init__(self,retval:Operand):
+        super().__init__()
+        self.retval=retval
+    def __str__(self):
+        return f"{self.retval} = alloca i32, align 4"
+

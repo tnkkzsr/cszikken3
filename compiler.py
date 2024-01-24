@@ -195,9 +195,12 @@ def p_subprog_decl(p):
 
 def p_proc_decl(p):
     '''
-    proc_decl : PROCEDURE proc_name LPAREN RPAREN SEMICOLON inblock
+    proc_decl : PROCEDURE proc_name LPAREN RPAREN SEMICOLON inblock 
     '''
-    
+    symtable.delete()
+    global varscope
+    varscope = Scope.GLOBAL_VAR
+
     
 
 def p_proc_name(p):
@@ -207,12 +210,14 @@ def p_proc_name(p):
     global varscope
     varscope = Scope.LOCAL_VAR
     symtable.insert(p[1], Scope.PROC)
+    fundefs.append(Fundef(p[1], 'void'))
 
 def p_inblock(p):
     '''
     inblock : var_decl_part statement
     '''
-    symtable.delete()
+    # symtable.delete()
+    addCode(LLVMCodeRet('void'))
 
     
 def p_statement_list(p):
@@ -234,8 +239,12 @@ def p_assignment_statement(p):
     '''assignment_statement : IDENT ASSIGN expression'''
      
     t = symtable.lookup(p[1])
-    ptr = Operand(OType.GLOBAL_VAR, name=t.name)
+    if t.scope == Scope.GLOBAL_VAR or t.scope == Scope.PROC:
+        ptr = Operand(OType.GLOBAL_VAR, name=t.name)
+    elif t.scope == Scope.LOCAL_VAR:
+        ptr = Operand(OType.NAMED_REG, name=t.name)
     addCode(LLVMCodeStore(p[3], ptr))
+    
 
 def p_act_assign_ident(p):
     '''act_assign_ident :'''
@@ -352,6 +361,7 @@ def p_proc_call_statement(p):
 def p_proc_call_name(p):
     '''proc_call_name : IDENT'''
     symtable.lookup(p[1])
+    addCode(LLVMCodeCall(p[1]))
 
 
 def p_block_statement(p):
@@ -363,7 +373,7 @@ def p_act_lookup_prev_ident(p):
     if t.scope == Scope.GLOBAL_VAR or t.scope == Scope.PROC:
         ptr = Operand(OType.GLOBAL_VAR, name=t.name)
     elif t.scope == Scope.LOCAL_VAR:
-        ptr = Operand(OType.NAMED_REG, val=t.name)
+        ptr = Operand(OType.NAMED_REG, name=t.name)
     p[0] = ptr
 
 def p_read_statement(p):
@@ -376,6 +386,8 @@ def p_read_statement(p):
     t = symtable.lookup(p[3])
     if t.scope == Scope.GLOBAL_VAR:
         ptr = Operand(OType.GLOBAL_VAR, name=t.name)
+    elif t.scope == Scope.LOCAL_VAR:
+        ptr = Operand(OType.NAMED_REG, name=t.name)
 
     addCode(LLVMCodeCallScanf(getRegister(), ptr))
 
@@ -474,6 +486,8 @@ def p_var_name(p):
     t = symtable.lookup(p[1])
     if t.scope == Scope.GLOBAL_VAR:
         ptr = Operand(OType.GLOBAL_VAR, name=t.name)
+    elif t.scope == Scope.LOCAL_VAR:
+        ptr = Operand(OType.NAMED_REG, name=t.name)
 
     retval = getRegister()
     addCode(LLVMCodeLoad(retval, ptr))
@@ -488,10 +502,18 @@ def p_number(p):
 def p_id_list(p):
     '''id_list : IDENT
                | id_list COMMA IDENT'''
+    global varscope
     if len(p) == 2:
+        name=p[1]
         symtable.insert(p[1], varscope)
     elif(len(p) == 4):
+        name=p[3]
         symtable.insert(p[3], varscope)
+
+    if varscope == Scope.LOCAL_VAR:
+        retval = Operand(OType.NAMED_REG, name)
+        print("aaa",retval)
+        addCode(LLVMCodeAlloca(retval))
 
 def p_act_insert_prev_var_ident(p):
     '''act_insert_prev_var_ident :'''

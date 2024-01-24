@@ -60,9 +60,9 @@ class SymbolTable(object):
 
     def delete(self):
         ''' 記号表から局所変数の削除 '''
-        self.rows = [row for row in self.rows if row[1] != Scope.LOCAL_VAR]
+        self.rows = [row for row in self.rows if row.scope != Scope.LOCAL_VAR]
                 
         print("-- delete --")
-        print([(row[0], row[1]) for row in self.rows])
+        print([(row.name, row.scope) for row in self.rows])
 
 
