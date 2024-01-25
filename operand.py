@@ -9,6 +9,7 @@ class OType(Enum):
     CONSTANT     = 3    # 定数
     LABEL        = 4    # ラベル
 
+
 class Operand(object):
     '''
     Operandクラス
@@ -33,4 +34,5 @@ class Operand(object):
             return str(self.val)
         elif self.type == OType.LABEL:
             return f"%L{self.val}"
+        
         

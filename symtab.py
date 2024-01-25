@@ -9,6 +9,9 @@ class Scope(Enum):
     GLOBAL_VAR = 0    # 大域変数
     LOCAL_VAR  = 1    # 局所変数
     PROC       = 2    # 手続き
+    PARAM      = 3    # 手続きの仮引数
+
+    
 
 
 class Symbol(object):
@@ -45,24 +48,35 @@ class SymbolTable(object):
 
     def lookup(self, name:str) -> Symbol:
         ''' 記号表から変数・手続きの検索 '''
-        for row in self.rows:
-            if (row.name == name) and (row.scope == Scope.LOCAL_VAR):
-                print("-- lookup --")
-                print( (row.name, row.scope))
-                return row
+        # for row in self.rows:
+        #     if (row.name == name) and (row.scope == Scope.LOCAL_VAR):
+        #         print("-- lookup --")
+        #         print( (row.name, row.scope))
+        #         return row
             
-        for row in self.rows:
-            if (row.name == name) and (row.scope != Scope.LOCAL_VAR):
+        # for row in self.rows:
+        #     if (row.name == name) and (row.scope != Scope.LOCAL_VAR):
+        #         print("-- lookup --")
+        #         print( (row.name, row.scope))
+        #         return row
+        for symbol in reversed(self.rows):
+            if symbol.name == name:
                 print("-- lookup --")
-                print( (row.name, row.scope))
-                return row
+                print( (symbol.name, symbol.scope))
+                return symbol
 
 
     def delete(self):
         ''' 記号表から局所変数の削除 '''
-        self.rows = [row for row in self.rows if row.scope != Scope.LOCAL_VAR]
+        # self.rows = [row for row in self.rows if row.scope != (Scope.LOCAL_VAR or Scope.PARAM)]
                 
-        print("-- delete --")
-        print([(row.name, row.scope) for row in self.rows])
+        # print("-- delete --")
+        # print([(row.name, row.scope) for row in self.rows])
+        for symbol in reversed(self.rows):
+            if symbol.scope == Scope.LOCAL_VAR or symbol.scope == Scope.PARAM:
+                self.rows.remove(symbol)
+            print("-- delete --")
+            for i in self.rows:
+                print(i)
 
 

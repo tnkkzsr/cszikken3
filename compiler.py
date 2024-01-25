@@ -195,12 +195,41 @@ def p_subprog_decl(p):
 
 def p_proc_decl(p):
     '''
-    proc_decl : PROCEDURE proc_name LPAREN RPAREN SEMICOLON inblock 
+    proc_decl : PROCEDURE proc_name LPAREN proc_act2 RPAREN SEMICOLON inblock
+         | PROCEDURE proc_name LPAREN act_proc_args_set id_list act_proc_args_done RPAREN SEMICOLON inblock
     '''
     symtable.delete()
     global varscope
     varscope = Scope.GLOBAL_VAR
+    addCode(LLVMCodeRet('void'))
 
+def p_proc_act2(p):
+    '''
+    proc_act2 :
+    '''
+    fundefs.append(Fundef(p[-2], 'void'))
+
+
+def p_act_proc_args_done(p):
+    '''
+    act_proc_args_done :
+    '''
+    # fundef = fundefs[-1]
+    # fundef.setArgs(p[-1])
+    # fundefs[-1] = fundef
+    # global varscope
+    # varscope = Scope.LOCAL_VAR
+    fundefs.append(Fundef(p[-4], 'void', p[-1]))
+    global varscope
+    varscope = Scope.LOCAL_VAR
+
+
+def p_act_proc_args_set(p):
+    '''
+    act_proc_args_set :
+    '''
+    global varscope
+    varscope = Scope.PARAM
     
 
 def p_proc_name(p):
@@ -210,7 +239,9 @@ def p_proc_name(p):
     global varscope
     varscope = Scope.LOCAL_VAR
     symtable.insert(p[1], Scope.PROC)
-    fundefs.append(Fundef(p[1], 'void'))
+    # fundefs.append(Fundef(p[1], 'void'))
+    p[0] = p[1]
+    
 
 def p_inblock(p):
     '''
@@ -239,11 +270,12 @@ def p_assignment_statement(p):
     '''assignment_statement : IDENT ASSIGN expression'''
      
     t = symtable.lookup(p[1])
-    if t.scope == Scope.GLOBAL_VAR or t.scope == Scope.PROC:
+    if t.scope == Scope.GLOBAL_VAR :
         ptr = Operand(OType.GLOBAL_VAR, name=t.name)
     elif t.scope == Scope.LOCAL_VAR:
         ptr = Operand(OType.NAMED_REG, name=t.name)
-    addCode(LLVMCodeStore(p[3], ptr))
+    retval = p[3]
+    addCode(LLVMCodeStore(retval, ptr))
     
 
 def p_act_assign_ident(p):
@@ -352,16 +384,53 @@ def p_for_act1(p):
     '''for_act1 :'''
     symtable.lookup(p[-3])
     
-
-def p_proc_call_statement(p):
-    '''proc_call_statement : proc_call_name LPAREN RPAREN'''
-
-    
+def p_arg_list(p):
+    '''arg_list : expression
+                | arg_list COMMA expression'''
+    if len(p) == 2:
+        if type(p[1]) == str:
+            t = symtable.lookup(p[1])
+            if t.scope == Scope.GLOBAL_VAR:
+                ptr = Operand(OType.GLOBAL_VAR, name=t.name)
+            elif t.scope == Scope.LOCAL_VAR:
+                ptr = Operand(OType.NAMED_REG, name=t.name)
+            elif t.scope == Scope.PARAM:
+                ptr = Operand(OType.NAMED_REG, name=t.name)
+            retval = getRegister()
+            addCode(LLVMCodeLoad(retval,ptr))
+            p[0] = f"i32 {retval}"
+        else:
+            p[0] = f"i32 {p[1]}"
+    else:
+        if type(p[3]) == str:
+            t = symtable.lookup(p[3])
+            if t.scope == Scope.GLOBAL_VAR:
+                ptr = Operand(OType.GLOBAL_VAR, name=t.name)
+            elif t.scope == Scope.LOCAL_VAR:
+                ptr = Operand(OType.NAMED_REG, name=t.name)
+            elif t.scope == Scope.PARAM:
+                ptr = Operand(OType.NAMED_REG, name=t.name)
+            retval = getRegister()
+            addCode(LLVMCodeLoad(retval, ptr))
+            p[0] = f"{p[1]}, i32 {retval}"
+        else:
+            p[0] = f"{p[1]}, i32 {p[3]}"
 
 def p_proc_call_name(p):
     '''proc_call_name : IDENT'''
     symtable.lookup(p[1])
-    addCode(LLVMCodeCall(p[1]))
+    p[0] = p[1]
+
+def p_proc_call_statement(p):
+    '''proc_call_statement : proc_call_name LPAREN RPAREN
+                           | proc_call_name LPAREN arg_list RPAREN
+                           
+    '''
+
+    if len(p) == 4:
+        addCode(LLVMCodeCall(p[1], 'void'))
+    else:
+        addCode(LLVMCodeCall(p[1],'void', p[3]))
 
 
 def p_block_statement(p):
@@ -372,7 +441,7 @@ def p_act_lookup_prev_ident(p):
     t = symtable.lookup(p[-1])
     if t.scope == Scope.GLOBAL_VAR or t.scope == Scope.PROC:
         ptr = Operand(OType.GLOBAL_VAR, name=t.name)
-    elif t.scope == Scope.LOCAL_VAR:
+    elif t.scope == Scope.LOCAL_VAR or t.scope == Scope.PARAM:
         ptr = Operand(OType.NAMED_REG, name=t.name)
     p[0] = ptr
 
@@ -386,8 +455,10 @@ def p_read_statement(p):
     t = symtable.lookup(p[3])
     if t.scope == Scope.GLOBAL_VAR:
         ptr = Operand(OType.GLOBAL_VAR, name=t.name)
-    elif t.scope == Scope.LOCAL_VAR:
+    if t.scope == Scope.LOCAL_VAR:
         ptr = Operand(OType.NAMED_REG, name=t.name)
+    if t.scope == Scope.PARAM:
+        ptr = Operand(OType.NAMED_REG, name=t.name) 
 
     addCode(LLVMCodeCallScanf(getRegister(), ptr))
 
@@ -484,14 +555,27 @@ def p_var_name(p):
     var_name : IDENT
     '''
     t = symtable.lookup(p[1])
-    if t.scope == Scope.GLOBAL_VAR:
-        ptr = Operand(OType.GLOBAL_VAR, name=t.name)
-    elif t.scope == Scope.LOCAL_VAR:
-        ptr = Operand(OType.NAMED_REG, name=t.name)
+    if t.scope == Scope.PARAM:
+        p[0] = Operand(OType.NAMED_REG, p[1])
+    else:
+        if t.scope == Scope.GLOBAL_VAR:
+            ptr = Operand(OType.GLOBAL_VAR, name=t.name)
+        elif t.scope == Scope.LOCAL_VAR:
+            ptr = Operand(OType.NAMED_REG, name=t.name)
+        retval = getRegister()
+        addCode(LLVMCodeLoad(retval, ptr))        
+        p[0] = retval
+    
+    # if ptr.name in args:
+    #     p[0] = ptr
+    # else:
+    #     retval = getRegister()
+    #     addCode(LLVMCodeLoad(retval, ptr))
+    #     p[0] = retval
 
-    retval = getRegister()
-    addCode(LLVMCodeLoad(retval, ptr))
-    p[0] = retval
+    # retval = getRegister()
+    # addCode(LLVMCodeLoad(retval, ptr))
+    # p[0] = retval
 
 def p_number(p):
     '''
@@ -502,54 +586,50 @@ def p_number(p):
 def p_id_list(p):
     '''id_list : IDENT
                | id_list COMMA IDENT'''
-    global varscope
+    
     if len(p) == 2:
         name=p[1]
-        symtable.insert(p[1], varscope)
-    elif(len(p) == 4):
+        if varscope == Scope.PARAM:
+            p[0] = f"i32 %{name}"
+    else:
         name=p[3]
-        symtable.insert(p[3], varscope)
-
+        if varscope == Scope.PARAM:
+            p[0] = f"{p[1]}, i32 %{p[3]}"
+    symtable.insert(name, varscope)
     if varscope == Scope.LOCAL_VAR:
         retval = Operand(OType.NAMED_REG, name)
-        print("aaa",retval)
         addCode(LLVMCodeAlloca(retval))
 
-def p_act_insert_prev_var_ident(p):
-    '''act_insert_prev_var_ident :'''
-    sym = Symbol(p[-1], varscope)
-    symtable.insert(sym)
-        # if varscope == Scope.GLOBAL_VAR:
-        #     addCode(LLVMCodeAlloca(Operand(Otype.NAMED_REG, name=sym.name)))
-
-def p_actinsert_prev_proc_ident(p):
-    '''act_insert_prev_proc_ident :'''
-    sym = Symbol(p[-1], Scope.PROC)
-    symtable.insert(sym)
-
-def p_act_set_varscope_local(p):
-    '''act_set_varscope_local :'''
-    global varscope
-    varscope = Scope.LOCAL_VAR
-
-def p_act_set_varscope_global(p):
-    '''act_set_varscope_global : act_delete_local_ident'''
-    global varscope
-    varscope = Scope.GLOBAL_VAR
-
-def p_act_delete_local_ident(p):
-    '''act_delete_local_ident :'''
-    symtable.delete()
     
 #################################################################
 # 構文解析エラー時の処理
 #################################################################
 
+# def p_error(p):
+#     if p:
+#         # p.type, p.value, p.linenoを使ってエラーの処理を書く
+#         print("Syntax error at token", p.type, p.value, p.lineno)
+
+#     else:
+#         print("Syntax error at EOF")
+    
+def find_column(input, token):
+    ''' トークンの列位置を特定する補助関数 '''
+    last_cr = input.rfind('\n', 0, token.lexpos)
+    if last_cr < 0:
+        last_cr = 0
+    column = (token.lexpos - last_cr) + 1
+    return column
+
 def p_error(p):
     if p:
-        # p.type, p.value, p.linenoを使ってエラーの処理を書く
-        print("Syntax error at token", p.type, p.value, p.lineno)
-
+        column = find_column(data, p)
+        print(f"Syntax error at '{p.type}' token, value '{p.value}', line {p.lineno}, column {column}")
+        # 前後のトークンの情報を提供する
+        context_start = max(p.lexpos - 10, 0)
+        context_end = min(p.lexpos + 10, len(data))
+        context = data[context_start:context_end]
+        print(f"Context: ...{context}...")
     else:
         print("Syntax error at EOF")
 
